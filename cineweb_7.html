@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CineWeb</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0a0a0f;
+  --surface: #111118;
+  --surface2: #18181f;
+  --border: #ffffff0f;
+  --border2: #ffffff18;
+  --text: #e8e8f0;
+  --muted: #666680;
+  --accent: #6c8fff;
+  --accent2: #ff8c6c;
+  --accent3: #6cffc8;
+  --person-c: #6c8fff;
+  --movie-c: #ff8c6c;
+  --tv-c: #6cffc8;
+}
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Header ── */
+#header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  z-index: 50;
+}
+#logo {
+  font-family: 'DM Mono', monospace;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--accent);
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+}
+#search-wrap {
+  flex: 1;
+  max-width: 420px;
+  position: relative;
+}
+#search-type {
+  display: flex;
+  gap: 2px;
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 2px;
+  flex-shrink: 0;
+}
+.stype {
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: none;
+  font-size: 12px;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 500;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.stype.active {
+  background: var(--surface2);
+  color: var(--text);
+}
+#sinput {
+  width: 100%;
+  padding: 8px 14px;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 13px;
+  font-family: 'DM Sans', sans-serif;
+  outline: none;
+  transition: border-color 0.15s;
+}
+#sinput:focus { border-color: var(--accent); }
+#sinput::placeholder { color: var(--muted); }
+#sresults {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0; right: 0;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.6);
+  z-index: 200;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.sr {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  cursor: grab;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+  user-select: none;
+}
+.sr:last-child { border-bottom: none; }
+.sr:hover { background: #ffffff08; }
+.sr:active { cursor: grabbing; }
+.sr-thumb {
+  flex-shrink: 0;
+  background: var(--surface);
+  overflow: hidden;
+  border: 1px solid var(--border2);
+}
+.sr-thumb.round { width: 36px; height: 36px; border-radius: 50%; }
+.sr-thumb.rect { width: 24px; height: 36px; border-radius: 4px; }
+.sr-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sr-name { font-size: 13px; font-weight: 500; color: var(--text); }
+.sr-meta { font-size: 11px; color: var(--muted); margin-top: 1px; }
+.sr-badge {
+  margin-left: auto;
+  font-size: 10px;
+  font-family: 'DM Mono', monospace;
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.badge-person { background: #6c8fff18; color: var(--person-c); }
+.badge-movie  { background: #ff8c6c18; color: var(--movie-c); }
+.badge-tv     { background: #6cffc818; color: var(--tv-c); }
+.sr-hint { font-size: 11px; color: var(--muted); padding: 10px 12px; text-align: center; }
+
+#hint-bar {
+  font-size: 11px;
+  color: var(--muted);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* ── Canvas ── */
+#canvas-area {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  cursor: crosshair;
+}
+#canvas-area.dragging-node { cursor: grabbing; }
+#canvas-area.panning { cursor: grab; }
+canvas { position: absolute; top: 0; left: 0; display: block; }
+
+/* ── Ghost drag image ── */
+#ghost {
+  position: fixed;
+  pointer-events: none;
+  z-index: 9999;
+  display: none;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 20px #6c8fff44;
+}
+
+/* ── Empty state ── */
+#empty {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+  opacity: 0.4;
+}
+#empty h2 { font-size: 22px; font-weight: 300; color: var(--muted); margin-bottom: 8px; }
+#empty p  { font-size: 13px; color: var(--muted); line-height: 1.7; }
+
+/* ── Loading pill ── */
+#loading {
+  display: none;
+  position: absolute;
+  top: 16px; left: 50%;
+  transform: translateX(-50%);
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 20px;
+  padding: 6px 16px;
+  font-size: 12px;
+  color: var(--muted);
+  font-family: 'DM Mono', monospace;
+  z-index: 10;
+  white-space: nowrap;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+/* ── Tooltip ── */
+#tooltip {
+  display: none;
+  position: absolute;
+  pointer-events: none;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 7px 11px;
+  z-index: 100;
+  white-space: nowrap;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+}
+#tooltip .tt-name { font-size: 13px; font-weight: 500; }
+#tooltip .tt-sub  { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+/* ── Info bar ── */
+#infobar {
+  padding: 6px 20px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--muted);
+  flex-shrink: 0;
+  font-family: 'DM Mono', monospace;
+}
+
+/* ── Legend ── */
+#legend {
+  position: absolute;
+  bottom: 14px; left: 14px;
+  display: flex;
+  gap: 14px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 11px;
+  color: var(--muted);
+  pointer-events: none;
+}
+.ldot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+/* ── Controls ── */
+#controls {
+  position: absolute;
+  bottom: 14px; right: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cbtn {
+  width: 30px; height: 30px;
+  border-radius: 7px;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  color: var(--muted);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  font-family: 'DM Sans', sans-serif;
+}
+.cbtn:hover { color: var(--text); border-color: var(--accent); }
+
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div id="logo">CINEWEB</div>
+  <div id="search-type">
+    <button class="stype active" data-t="person">Actor</button>
+    <button class="stype" data-t="movie">Movie</button>
+    <button class="stype" data-t="tv">TV Show</button>
+  </div>
+  <div id="search-wrap">
+    <input id="sinput" type="text" placeholder="Search and drag onto canvas..." autocomplete="off" spellcheck="false" />
+    <div id="sresults"></div>
+  </div>
+  <div id="hint-bar">Drag results onto canvas · Click nodes to expand</div>
+</div>
+
+<div id="canvas-area">
+  <canvas id="cvs"></canvas>
+  <div id="empty">
+    <h2>Your web starts here</h2>
+    <p>Search for an actor or movie above<br>Drag them onto the canvas to begin<br>Click any node to expand its connections</p>
+  </div>
+  <div id="loading">loading...</div>
+  <div id="tooltip"><div class="tt-name" id="tt-name"></div><div class="tt-sub" id="tt-sub"></div></div>
+  <div id="legend">
+    <span><span class="ldot" style="background:var(--person-c)"></span>Actor</span>
+    <span><span class="ldot" style="background:var(--movie-c)"></span>Movie</span>
+    <span><span class="ldot" style="background:var(--tv-c)"></span>TV Show</span>
+  </div>
+  <div id="controls">
+    <button class="cbtn" id="zi" title="Zoom in">+</button>
+    <button class="cbtn" id="zo" title="Zoom out">−</button>
+    <button class="cbtn" id="rv" title="Reset view" style="font-size:11px">⊙</button>
+    <button class="cbtn" id="cl" title="Clear" style="font-size:11px">✕</button>
+  </div>
+</div>
+
+<div id="infobar" id="infobar">drag an actor or movie onto the canvas to start building your web</div>
+
+<div id="ghost"></div>
+
+<div id="server-warning" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#1a0a0a;border-bottom:1px solid #ff4444;padding:10px 20px;font-size:12px;font-family:DM Mono,monospace;color:#ff8888;display:flex;align-items:center;gap:12px;">
+  <span style="color:#ff4444;font-size:16px">⚠</span>
+  <span>Running as a local file — some connections may fail. For best results open Terminal and run: <strong style="color:#ffaaaa">cd ~/Downloads && python3 -m http.server 8765</strong> then open <strong style="color:#ffaaaa">http://localhost:8765/cineweb.html</strong></span>
+  <button onclick="document.getElementById('server-warning').style.display='none'" style="margin-left:auto;background:transparent;border:1px solid #ff4444;color:#ff8888;padding:3px 8px;border-radius:4px;cursor:pointer;font-family:inherit;font-size:11px">dismiss</button>
+</div>
+
+<script>
+// Show warning if running as file://
+if (window.location.protocol === 'file:') {
+  document.getElementById('server-warning').style.display = 'flex';
+}
+</script>
+
+<script>
+// ── API ───────────────────────────────────────────────────
+const KEY  = '639e0dc639711795c8a5f4350136a280';
+const BASE = 'https://api.themoviedb.org/3';
+const IP   = 'https://image.tmdb.org/t/p/h632';
+const IM   = 'https://image.tmdb.org/t/p/w342';
+
+async function tmdb(path, params) {
+  const q = new URLSearchParams(Object.assign({ api_key: KEY }, params || {}));
+  const r = await fetch(BASE + path + '?' + q);
+  if (!r.ok) throw new Error('TMDB ' + r.status);
+  return r.json();
+}
+
+// ── State ─────────────────────────────────────────────────
+let nodes = [], edges = [], imgCache = {};
+let expanded = new Set();
+let tx = 0, ty = 0, sc = 1;
+let dragNode = null, dnOx = 0, dnOy = 0;
+let panning = false, psx = 0, psy = 0;
+let mdPos = null, didMove = false;
+let searchType = 'person';
+let searchResults = [], searchTimer = null;
+let dropCandidate = null; // item being dragged from search results
+
+// ── Canvas setup ──────────────────────────────────────────
+const area = document.getElementById('canvas-area');
+const cvs  = document.getElementById('cvs');
+const c2   = cvs.getContext('2d');
+const ghost = document.getElementById('ghost');
+
+function W() { return area.clientWidth; }
+function H() { return area.clientHeight; }
+function resize() { cvs.width = W(); cvs.height = H(); }
+resize();
+window.addEventListener('resize', resize);
+
+function w2s(x, y) { return { x: x*sc+tx, y: y*sc+ty }; }
+function s2w(x, y) { return { x: (x-tx)/sc, y: (y-ty)/sc }; }
+
+// ── Image cache ───────────────────────────────────────────
+function loadImg(src) {
+  if (!src || src in imgCache) return;
+  imgCache[src] = null;
+  const img = new Image();
+  img.onload  = () => { imgCache[src] = img; };
+  img.onerror = () => { imgCache[src] = false; };
+  img.src = src;
+}
+
+// ── Graph ─────────────────────────────────────────────────
+function addNode(id, type, label, imgSrc, x, y) {
+  if (nodes.find(n => n.id === id)) return null;
+  const n = {
+    id, type, label, imgSrc,
+    x: x != null ? x : 0,
+    y: y != null ? y : 0,
+    vx: 0, vy: 0,
+    r: type === 'person' ? 28 : 22
+  };
+  nodes.push(n);
+  if (imgSrc) loadImg(imgSrc);
+  document.getElementById('empty').style.display = 'none';
+  return n;
+}
+
+function addEdge(a, b, label) {
+  const key1 = a + '|' + b, key2 = b + '|' + a;
+  if (!edges.find(e => (e.a===a&&e.b===b)||(e.a===b&&e.b===a)))
+    edges.push({ a, b, label: label || '' });
+}
+
+function info(m) { document.getElementById('infobar').textContent = m; }
+function showLoad(m) { const p=document.getElementById('loading'); p.textContent=m; p.style.display='block'; }
+function hideLoad() { document.getElementById('loading').style.display='none'; }
+
+// ── Helpers ──────────────────────────────────────────────
+// Returns true if this credit is an appearance as themselves
+// (talk shows, award shows, documentaries where they play "Self")
+// TMDB genre IDs to exclude
+const EXCLUDE_GENRES = new Set([
+  10767, // Talk
+  10764, // Reality
+  10763, // News
+  10766, // Soap
+]);
+
+// Known talk/variety/award show title fragments to exclude
+const EXCLUDE_TITLE_FRAGMENTS = [
+  'tonight show', 'late show', 'late night', 'daily show', 'jimmy kimmel',
+  'jimmy fallon', 'conan', 'kelly clarkson', 'ellen', 'wendy williams',
+  'view', 'good morning', 'today show', 'live with', 'saturday night live',
+  'snl', 'award', 'oscars', 'emmys', 'grammys', 'golden globe',
+  'dancing with', 'celebrity', 'roast', 'cribs', 'mtv', 'bet awards',
+  'talk show', 'access hollywood', 'entertainment tonight', 'extra ',
+  'inside edition', 'e! news', 'extra tv'
+];
+
+function isSelfCredit(credit) {
+  const ch = (credit.character || '').trim().toLowerCase();
+  // Character is "Self" variant
+  if (ch === 'self' || ch === 'himself' || ch === 'herself' || ch === 'themselves'
+      || ch.startsWith('self -') || ch.startsWith('self –') || ch.startsWith('self (')) return true;
+  // Genre-based filter
+  const genres = credit.genre_ids || [];
+  if (genres.some(g => EXCLUDE_GENRES.has(g))) return true;
+  // Title-based filter for known talk/variety shows
+  const title = (credit.title || credit.name || '').toLowerCase();
+  if (EXCLUDE_TITLE_FRAGMENTS.some(f => title.includes(f))) return true;
+  // Episode count heuristic: TV show with very high episode count = likely long-running talk show
+  if (credit.media_type === 'tv' && (credit.episode_count || 0) > 8 && ch === '') return true;
+  return false;
+}
+
+// ── EXPAND PERSON
+// When there are other actors on the web already, only show titles
+// where at least one of those actors also appears (shared connections).
+// When this is the first actor, show their top credits.
+async function expandPerson(node) {
+  if (expanded.has(node.id)) {
+    info(node.label + ' is already expanded — click a title node to expand its cast');
+    return;
+  }
+  expanded.add(node.id);
+
+  // Build the reference cast: everyone connected to any title node that is
+  // also connected to this actor. This means "castmates from the same movies
+  // already on the web" — even if those castmates aren't visible as nodes yet.
+  //
+  // Step 1: find title nodes directly connected to this actor
+  const connectedTitleIds = edges
+    .filter(e => e.a === node.id || e.b === node.id)
+    .map(e => e.a === node.id ? e.b : e.a)
+    .filter(id => {
+      const n = nodes.find(x => x.id === id);
+      return n && n.type !== 'person';
+    });
+
+  // Step 2: for each connected title, fetch its full cast to use as reference
+  let referenceCastIds = new Set();
+  if (connectedTitleIds.length > 0) {
+    showLoad('Loading cast of connected titles...');
+    await Promise.all(connectedTitleIds.map(async titleId => {
+      try {
+        const parts = titleId.split('-');
+        const mtype = parts[0], mid = parts.slice(1).join('-');
+        const cd = await tmdb('/' + mtype + '/' + mid + '/credits');
+        (cd.cast || []).forEach(m => {
+          if (m.id !== node.id) referenceCastIds.add(m.id);
+        });
+        console.log('[CineWeb] Reference title', titleId, '→', (cd.cast||[]).length, 'cast members loaded');
+      } catch(e) { console.warn('[CineWeb] Failed to load credits for', titleId, e); }
+    }));
+  }
+
+  // Step 3: also include any person nodes already visible on the web
+  nodes.filter(n => n.type === 'person' && n.id !== node.id)
+    .forEach(n => referenceCastIds.add(n.id));
+
+  console.log('[CineWeb] expandPerson:', node.label,
+    '| connectedTitles:', connectedTitleIds,
+    '| referenceCast size:', referenceCastIds.size,
+    '| otherPersonNodes:', nodes.filter(n=>n.type==='person'&&n.id!==node.id).map(n=>n.label));
+
+  const isFirst = referenceCastIds.size === 0;
+
+  // Fetch this person's credits
+  showLoad('Loading ' + node.label + '\'s credits...');
+  let allCredits;
+  try {
+    const data = await tmdb('/person/' + node.id + '/combined_credits');
+    allCredits = (data.cast || [])
+      .filter(c => c.poster_path && (c.media_type === 'movie' || c.media_type === 'tv')
+        && !isSelfCredit(c))
+      .sort((a, b) => (b.popularity||0) - (a.popularity||0))
+      .slice(0, 40);
+  } catch(e) { expanded.delete(node.id); hideLoad(); info('Error: ' + e.message); return; }
+
+  if (isFirst) {
+    // No reference — show top credits as starting point
+    const credits = allCredits.slice(0, 14).map(c => ({
+      id: c.media_type + '-' + c.id, type: c.media_type,
+      label: c.title || c.name, imgSrc: IM + c.poster_path
+    }));
+    placeAroundNode(node, credits);
+    info(node.label + ' · ' + credits.length + ' credits · click any title to see its cast');
+    hideLoad();
+    return;
+  }
+
+  // Filter credits to only titles where a reference cast member also appears
+  showLoad('Finding titles with shared castmates...');
+  const matched = [];
+  await Promise.all(allCredits.map(async credit => {
+    try {
+      const path = '/' + credit.media_type + '/' + credit.id + '/credits';
+      const cd = await tmdb(path);
+      const castIds = new Set((cd.cast || []).map(m => m.id));
+      if ([...referenceCastIds].some(id => castIds.has(id))) {
+        matched.push({
+          id: credit.media_type + '-' + credit.id, type: credit.media_type,
+          label: credit.title || credit.name, imgSrc: IM + credit.poster_path
+        });
+      }
+    } catch(e) {}
+  }));
+
+  console.log('[CineWeb]', node.label, '→ checked', allCredits.length, 'credits →', matched.length, 'matched');
+  matched.forEach(m => console.log('  match:', m.label));
+
+  if (matched.length === 0) {
+    const fallback = allCredits.slice(0, 12).map(c => ({
+      id: c.media_type + '-' + c.id, type: c.media_type,
+      label: c.title || c.name, imgSrc: IM + c.poster_path
+    }));
+    placeAroundNode(node, fallback);
+    info(node.label + ' · no shared castmates found · showing top credits instead');
+  } else {
+    placeAroundNode(node, matched);
+    info(node.label + ' · ' + matched.length + ' shared title(s) found · click any to expand its cast');
+  }
+  hideLoad();
+}
+
+// ── EXPAND MEDIA — show full cast
+async function expandMedia(node) {
+  if (expanded.has(node.id)) {
+    info(node.label + ' already expanded · click any actor to find their shared connections');
+    return;
+  }
+  expanded.add(node.id);
+  showLoad('Loading cast of ' + node.label + '...');
+  try {
+    const parts = node.id.split('-');
+    const mtype = parts[0];
+    const mid   = parts.slice(1).join('-');
+    const data  = await tmdb('/' + mtype + '/' + mid + '/credits');
+    const cast  = (data.cast || [])
+      .filter(c => c.profile_path && !isSelfCredit(c))
+      .sort((a, b) => (a.order||99) - (b.order||99))
+      .slice(0, 12);
+    placeAroundNode(node, cast.map(c => ({
+      id: c.id,
+      type: 'person',
+      label: c.name,
+      imgSrc: IP + c.profile_path
+    })));
+    info('"' + node.label + '" cast · ' + cast.length + ' actors added · click any actor to see their shared connections');
+  } catch(e) { expanded.delete(node.id); info('Error: ' + e.message); }
+  hideLoad();
+}
+
+function placeAroundNode(center, items) {
+  const step = (Math.PI * 2) / Math.max(items.length, 1);
+  const off  = Math.random() * Math.PI * 2;
+  items.forEach((item, i) => {
+    const angle = off + step * i;
+    const dist  = (center.r === 28 ? 180 : 160) + Math.random() * 40;
+    const x = center.x + Math.cos(angle) * dist;
+    const y = center.y + Math.sin(angle) * dist;
+    addNode(item.id, item.type, item.label, item.imgSrc, x, y);
+    addEdge(center.id, item.id, item.label);
+  });
+}
+
+// ── DRAW ─────────────────────────────────────────────────
+function nodeColor(type) {
+  return type === 'person' ? '#6c8fff' : type === 'tv' ? '#6cffc8' : '#ff8c6c';
+}
+
+function drawRR(x, y, w, h, r) {
+  c2.beginPath();
+  c2.moveTo(x+r,y); c2.lineTo(x+w-r,y); c2.quadraticCurveTo(x+w,y,x+w,y+r);
+  c2.lineTo(x+w,y+h-r); c2.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  c2.lineTo(x+r,y+h); c2.quadraticCurveTo(x,y+h,x,y+h-r);
+  c2.lineTo(x,y+r); c2.quadraticCurveTo(x,y,x+r,y); c2.closePath();
+}
+
+function drawNode(n) {
+  const s   = w2s(n.x, n.y);
+  const r   = n.r * sc;
+  const col = nodeColor(n.type);
+  const img = imgCache[n.imgSrc];
+  const exp = expanded.has(n.id);
+  c2.save();
+
+  if (n.type === 'person') {
+    // Ring
+    c2.beginPath(); c2.arc(s.x, s.y, r, 0, Math.PI*2);
+    c2.fillStyle = col + '15'; c2.fill();
+    c2.strokeStyle = exp ? col : col + '55';
+    c2.lineWidth = exp ? 2 : 1.5; c2.stroke();
+    // Photo
+    if (img) {
+      c2.save(); c2.beginPath(); c2.arc(s.x, s.y, r-2, 0, Math.PI*2); c2.clip();
+      c2.drawImage(img, s.x-r+2, s.y-r+2, (r-2)*2, (r-2)*2); c2.restore();
+    } else {
+      c2.fillStyle = col;
+      c2.font = '500 ' + Math.max(10, r*.42) + 'px DM Sans, sans-serif';
+      c2.textAlign = 'center'; c2.textBaseline = 'middle';
+      c2.fillText(n.label.split(' ').map(w=>w[0]||'').join('').toUpperCase().slice(0,2), s.x, s.y);
+    }
+  } else {
+    const hw = r * .62, hh = hw * 1.5;
+    drawRR(s.x-hw, s.y-hh, hw*2, hh*2, 4);
+    c2.fillStyle = col + '15'; c2.fill();
+    c2.strokeStyle = exp ? col : col + '55';
+    c2.lineWidth = exp ? 2 : 1.5; c2.stroke();
+    if (img) {
+      c2.save(); drawRR(s.x-hw+2, s.y-hh+2, (hw-2)*2, (hh-2)*2, 3); c2.clip();
+      c2.drawImage(img, s.x-hw+2, s.y-hh+2, (hw-2)*2, (hh-2)*2); c2.restore();
+    } else {
+      c2.fillStyle = col;
+      c2.font = '500 ' + Math.max(8, r*.38) + 'px DM Sans, sans-serif';
+      c2.textAlign = 'center'; c2.textBaseline = 'middle';
+      c2.fillText(n.type === 'tv' ? 'TV' : 'MV', s.x, s.y);
+    }
+  }
+
+  // Label
+  if (sc > 0.32) {
+    const yOff = n.type === 'person' ? r + 4 : r*.62*1.5 + 4;
+    const maxW = (n.type === 'person' ? 90 : 78) * sc;
+    const fs   = Math.max(10, Math.min(12, 11 * sc));
+    c2.font = '400 ' + fs + 'px DM Sans, sans-serif';
+    c2.fillStyle = '#aaaacc';
+    c2.textAlign = 'center'; c2.textBaseline = 'top';
+    let lbl = n.label;
+    while (c2.measureText(lbl + '…').width > maxW && lbl.length > 2) lbl = lbl.slice(0,-1);
+    c2.fillText(lbl !== n.label ? lbl + '…' : lbl, s.x, s.y + yOff);
+  }
+  c2.restore();
+}
+
+function draw() {
+  c2.clearRect(0, 0, cvs.width, cvs.height);
+
+  // Subtle grid
+  c2.save();
+  c2.strokeStyle = '#ffffff05';
+  c2.lineWidth = 1;
+  const gsize = 60 * sc;
+  const ox = tx % gsize, oy = ty % gsize;
+  for (let x = ox; x < cvs.width; x += gsize) { c2.beginPath(); c2.moveTo(x,0); c2.lineTo(x,cvs.height); c2.stroke(); }
+  for (let y = oy; y < cvs.height; y += gsize) { c2.beginPath(); c2.moveTo(0,y); c2.lineTo(cvs.width,y); c2.stroke(); }
+  c2.restore();
+
+  // Edges
+  for (const e of edges) {
+    const a = nodes.find(n=>n.id===e.a), b = nodes.find(n=>n.id===e.b);
+    if (!a||!b) continue;
+    const sa = w2s(a.x,a.y), sb = w2s(b.x,b.y);
+    c2.beginPath(); c2.moveTo(sa.x,sa.y); c2.lineTo(sb.x,sb.y);
+    c2.strokeStyle = '#ffffff08'; c2.lineWidth = 1; c2.stroke();
+  }
+
+  for (const n of nodes) drawNode(n);
+}
+
+// ── PHYSICS ───────────────────────────────────────────────
+function simulate() {
+  const REP = 5500, SPRING = 280, DAMP = 0.78;
+  for (let i = 0; i < nodes.length; i++) {
+    for (let j = i+1; j < nodes.length; j++) {
+      const a=nodes[i], b=nodes[j];
+      const dx=a.x-b.x, dy=a.y-b.y, d=Math.sqrt(dx*dx+dy*dy)||0.1;
+      const f=REP/(d*d), fx=dx/d*f, fy=dy/d*f;
+      if(a!==dragNode){a.vx+=fx;a.vy+=fy;}
+      if(b!==dragNode){b.vx-=fx;b.vy-=fy;}
+    }
+  }
+  for (const e of edges) {
+    const a=nodes.find(n=>n.id===e.a), b=nodes.find(n=>n.id===e.b);
+    if (!a||!b) continue;
+    const dx=b.x-a.x, dy=b.y-a.y, d=Math.sqrt(dx*dx+dy*dy)||0.1;
+    const f=(d-SPRING)*.012, fx=dx/d*f, fy=dy/d*f;
+    if(a!==dragNode){a.vx+=fx;a.vy+=fy;}
+    if(b!==dragNode){b.vx-=fx;b.vy-=fy;}
+  }
+  for (const n of nodes) {
+    if (n===dragNode) continue;
+    n.vx*=DAMP; n.vy*=DAMP; n.x+=n.vx; n.y+=n.vy;
+  }
+}
+
+function loop() { simulate(); draw(); requestAnimationFrame(loop); }
+loop();
+tx = W()/2; ty = H()/2;
+
+// ── HIT TEST ─────────────────────────────────────────────
+function hitNode(px, py) {
+  const w = s2w(px, py);
+  for (let i=nodes.length-1; i>=0; i--) {
+    const n=nodes[i], dx=w.x-n.x, dy=w.y-n.y;
+    if (n.type==='person') {
+      if (Math.sqrt(dx*dx+dy*dy) < n.r) return n;
+    } else {
+      const hw=n.r*.62, hh=hw*1.5;
+      if (Math.abs(dx)<hw && Math.abs(dy)<hh) return n;
+    }
+  }
+  return null;
+}
+
+// ── CANVAS MOUSE ─────────────────────────────────────────
+cvs.addEventListener('mousedown', e => {
+  if (e.button !== 0) return;
+  const rect = cvs.getBoundingClientRect();
+  const px = e.clientX-rect.left, py = e.clientY-rect.top;
+  mdPos = { x:e.clientX, y:e.clientY }; didMove = false;
+  const h = hitNode(px, py);
+  if (h) {
+    dragNode = h; area.classList.add('dragging-node');
+    const w = s2w(px, py); dnOx=h.x-w.x; dnOy=h.y-w.y;
+  } else {
+    panning=true; area.classList.add('panning');
+    psx=e.clientX-tx; psy=e.clientY-ty;
+  }
+});
+
+cvs.addEventListener('mousemove', e => {
+  const rect=cvs.getBoundingClientRect(), px=e.clientX-rect.left, py=e.clientY-rect.top;
+  if (mdPos && (Math.abs(e.clientX-mdPos.x)+Math.abs(e.clientY-mdPos.y))>4) didMove=true;
+  if (dragNode) {
+    const w=s2w(px,py); dragNode.x=w.x+dnOx; dragNode.y=w.y+dnOy;
+    dragNode.vx=0; dragNode.vy=0; return;
+  }
+  if (panning) { tx=e.clientX-psx; ty=e.clientY-psy; return; }
+  const h=hitNode(px,py);
+  const tip=document.getElementById('tooltip');
+  const ttN=document.getElementById('tt-name'), ttS=document.getElementById('tt-sub');
+  if (h) {
+    cvs.style.cursor='pointer';
+    tip.style.display='block';
+    tip.style.left=(px+14)+'px'; tip.style.top=(py-44)+'px';
+    ttN.textContent=h.label;
+    ttS.textContent=(h.type==='person'?'Actor':h.type==='tv'?'TV Show':'Movie')
+      +(expanded.has(h.id)?' · expanded':' · click to expand');
+  } else { cvs.style.cursor=''; tip.style.display='none'; }
+});
+
+cvs.addEventListener('mouseup', e => {
+  if (e.button!==0) return;
+  if (!didMove) {
+    const rect=cvs.getBoundingClientRect(), px=e.clientX-rect.left, py=e.clientY-rect.top;
+    const h=hitNode(px,py);
+    if (h) {
+      if (h.type==='person') expandPerson(h);
+      else expandMedia(h);
+    }
+  }
+  dragNode=null; panning=false; didMove=false; mdPos=null;
+  area.classList.remove('dragging-node','panning');
+  cvs.style.cursor=''; document.getElementById('tooltip').style.display='none';
+});
+
+cvs.addEventListener('mouseleave', () => {
+  dragNode=null; panning=false; didMove=false; mdPos=null;
+  area.classList.remove('dragging-node','panning');
+  document.getElementById('tooltip').style.display='none';
+});
+
+cvs.addEventListener('wheel', e => {
+  e.preventDefault();
+  const rect=cvs.getBoundingClientRect(), px=e.clientX-rect.left, py=e.clientY-rect.top;
+  const ns=Math.min(4,Math.max(0.12,sc*(e.deltaY>0?0.88:1.14)));
+  tx=px-(px-tx)*(ns/sc); ty=py-(py-ty)*(ns/sc); sc=ns;
+},{passive:false});
+
+// ── CONTROLS ─────────────────────────────────────────────
+document.getElementById('zi').onclick=()=>{sc=Math.min(4,sc*1.25);};
+document.getElementById('zo').onclick=()=>{sc=Math.max(0.12,sc/1.25);};
+document.getElementById('rv').onclick=()=>{tx=W()/2;ty=H()/2;sc=1;};
+document.getElementById('cl').onclick=()=>{
+  nodes=[];edges=[];expanded.clear();imgCache={};
+  document.getElementById('empty').style.display='block';
+  info('drag an actor or movie onto the canvas to start building your web');
+};
+
+// ── SEARCH ────────────────────────────────────────────────
+// Mode toggle
+document.querySelectorAll('.stype').forEach(btn => {
+  btn.onclick = function() {
+    document.querySelectorAll('.stype').forEach(b=>b.classList.remove('active'));
+    this.classList.add('active');
+    searchType = this.dataset.t;
+    const ph = {person:'Search for an actor...', movie:'Search for a movie...', tv:'Search for a TV show...'};
+    document.getElementById('sinput').placeholder = ph[searchType];
+    document.getElementById('sinput').value = '';
+    document.getElementById('sresults').style.display = 'none';
+    searchResults = [];
+  };
+});
+
+async function doSearch(q) {
+  if (searchType==='person') {
+    const d = await tmdb('/search/person',{query:q,page:1});
+    return (d.results||[]).slice(0,8).map(r=>({
+      id: r.id, type:'person', name:r.name,
+      img: r.profile_path ? IP+r.profile_path : '',
+      meta: (r.known_for||[]).slice(0,2).map(k=>k.title||k.name).filter(Boolean).join(' · ')
+    }));
+  } else if (searchType==='movie') {
+    const d = await tmdb('/search/movie',{query:q,page:1});
+    return (d.results||[]).slice(0,8).map(r=>({
+      id: 'movie-'+r.id, type:'movie', name:r.title,
+      img: r.poster_path ? IM+r.poster_path : '',
+      meta: r.release_date ? r.release_date.slice(0,4) : ''
+    }));
+  } else {
+    const d = await tmdb('/search/tv',{query:q,page:1});
+    return (d.results||[]).slice(0,8).map(r=>({
+      id: 'tv-'+r.id, type:'tv', name:r.name,
+      img: r.poster_path ? IM+r.poster_path : '',
+      meta: r.first_air_date ? r.first_air_date.slice(0,4) : ''
+    }));
+  }
+}
+
+function renderResults(results) {
+  const box = document.getElementById('sresults');
+  if (!results.length) { box.style.display='none'; return; }
+  const badges = {person:'badge-person',movie:'badge-movie',tv:'badge-tv'};
+  const labels = {person:'ACTOR',movie:'MOVIE',tv:'TV'};
+  box.innerHTML = results.map((r,i)=>
+    '<div class="sr" data-i="'+i+'" draggable="true">'
+    +'<div class="sr-thumb '+(r.type==='person'?'round':'rect')+'">'
+    +'<img src="'+r.img+'" onerror="this.style.opacity=.15" alt=""></div>'
+    +'<div><div class="sr-name">'+r.name+'</div>'
+    +(r.meta?'<div class="sr-meta">'+r.meta+'</div>':'')+'</div>'
+    +'<span class="sr-badge '+badges[r.type]+'">'+labels[r.type]+'</span>'
+    +'</div>'
+  ).join('')
+  +'<div class="sr-hint">drag onto canvas · or click to place at center</div>';
+  box.style.display = 'block';
+}
+
+const sinput = document.getElementById('sinput');
+const sresults = document.getElementById('sresults');
+
+sinput.addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  const q = sinput.value.trim();
+  if (q.length < 2) { sresults.style.display='none'; return; }
+  searchTimer = setTimeout(async () => {
+    try {
+      searchResults = await doSearch(q);
+      renderResults(searchResults);
+    } catch(e) {
+      sresults.innerHTML = '<div class="sr-hint" style="color:#ff8c6c">'+e.message+'</div>';
+      sresults.style.display = 'block';
+    }
+  }, 300);
+});
+
+sinput.addEventListener('keydown', e => {
+  if (e.key==='Escape') { sresults.style.display='none'; }
+  if (e.key==='Enter' && searchResults.length) placeResult(searchResults[0]);
+});
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('#header')) sresults.style.display='none';
+});
+
+// Click to place at center
+sresults.addEventListener('click', e => {
+  const row = e.target.closest('.sr[data-i]');
+  if (!row) return;
+  const r = searchResults[+row.dataset.i];
+  if (r) placeResult(r);
+});
+
+function placeResult(r, x, y) {
+  sresults.style.display = 'none';
+  sinput.value = '';
+  searchResults = [];
+  if (nodes.find(n=>n.id===r.id)) { info(r.name+' is already on the web'); return; }
+  const wx = x != null ? x : (W()/2-tx)/sc;
+  const wy = y != null ? y : (H()/2-ty)/sc;
+  const node = addNode(r.id, r.type, r.name, r.img||null, wx, wy);
+  if (!node) return;
+  if (r.type==='person') expandPerson(node);
+  else expandMedia(node);
+}
+
+// ── DRAG FROM RESULTS ─────────────────────────────────────
+sresults.addEventListener('dragstart', e => {
+  const row = e.target.closest('.sr[data-i]');
+  if (!row) return;
+  dropCandidate = searchResults[+row.dataset.i];
+  e.dataTransfer.effectAllowed = 'copy';
+  e.dataTransfer.setData('text/plain', row.dataset.i);
+  // Custom ghost
+  const thumb = row.querySelector('.sr-thumb');
+  if (thumb) {
+    ghost.style.width = ghost.style.height = '48px';
+    ghost.style.backgroundImage = 'url('+thumb.querySelector('img').src+')';
+    ghost.style.backgroundSize = 'cover';
+    ghost.style.display = 'block';
+    ghost.style.left = '-200px'; ghost.style.top = '-200px';
+    e.dataTransfer.setDragImage(ghost, 24, 24);
+  }
+});
+
+sresults.addEventListener('dragend', () => {
+  ghost.style.display = 'none';
+});
+
+area.addEventListener('dragover', e => {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'copy';
+});
+
+area.addEventListener('drop', e => {
+  e.preventDefault();
+  if (!dropCandidate) return;
+  const rect = area.getBoundingClientRect();
+  const wx = s2w(e.clientX-rect.left, e.clientY-rect.top);
+  placeResult(dropCandidate, wx.x, wx.y);
+  dropCandidate = null;
+});
+</script>
+</body>
+</html>
